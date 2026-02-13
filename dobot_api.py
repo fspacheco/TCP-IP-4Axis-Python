@@ -103,7 +103,7 @@ def alarmAlarmJsonFile():
 
 
 class DobotApi:
-    def __init__(self, ip, port, *args):
+    def __init__(self, ip, port, *args, timeout_s=5.0):
         self.ip = ip
         self.port = port
         self.socket_dobot = 0
@@ -112,17 +112,18 @@ class DobotApi:
         if args:
             self.text_log = args[0]
 
-        if self.port == 29999 or self.port == 30003 or self.port == 30004:
+        if self.port in (29999, 30003, 30004):
             try:
-                self.socket_dobot = socket.socket()
+                self.socket_dobot = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.socket_dobot.settimeout(timeout_s)     # <-- adds timeout for connect + recv
                 self.socket_dobot.connect((self.ip, self.port))
-            except socket.error:
-                print(socket.error)
-                raise Exception(
-                    f"Unable to set socket connection use port {self.port} !", socket.error)
+                self.socket_dobot.settimeout(None)          # <-- optional: back to blocking mode after connect
+            except socket.timeout as e:
+                raise TimeoutError(f"Timeout connecting to {self.ip}:{self.port} after {timeout_s}s") from e
+            except socket.error as e:
+                raise Exception(f"Unable to set socket connection use port {self.port} !") from e
         else:
-            raise Exception(
-                f"Connect to dashboard server need use port {self.port} !")
+            raise Exception(f"Connect to dashboard server need use port {self.port} !")
 
     def log(self, text):
         if self.text_log:
